@@ -1229,10 +1229,45 @@ function About() {
 function Contact() {
   const [formState, setFormState] = useState({ name: '', email: '', type: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
-  const handleSubmit = (e) => {
+  const endpoint = import.meta.env.VITE_FORMSPREE_ENDPOINT;
+  const notConfigured = !endpoint;
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
+    if (notConfigured) return;
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          name: formState.name,
+          email: formState.email,
+          type: formState.type,
+          message: formState.message,
+        }),
+      });
+
+      if (response.ok) {
+        setSubmitted(true);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        const msg =
+          data?.errors?.[0]?.message ||
+          data?.error ||
+          'Failed to send message. Please try again.';
+        setSubmitError(msg);
+      }
+    } catch {
+      setSubmitError('Network error. Please check your connection and try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1259,6 +1294,11 @@ function Contact() {
           </RevealSection>
         ) : (
           <RevealSection>
+            {notConfigured && (
+              <p style={{ fontFamily: 'var(--sans)', fontSize: 13, color: '#e07070', textAlign: 'center', marginBottom: 32, letterSpacing: '0.04em' }}>
+                Contact form is not configured. Set <code>VITE_FORMSPREE_ENDPOINT</code> in your environment to enable submissions.
+              </p>
+            )}
             <form onSubmit={handleSubmit}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 40px' }}>
                 <div className="form-field">
@@ -1307,20 +1347,28 @@ function Contact() {
                 <label htmlFor="message">Tell Us About Your Project</label>
               </div>
 
+              {submitError && (
+                <p style={{ fontFamily: 'var(--sans)', fontSize: 13, color: '#e07070', textAlign: 'center', marginTop: 24, letterSpacing: '0.04em' }}>
+                  {submitError}
+                </p>
+              )}
+
               <div style={{ textAlign: 'center', marginTop: 48 }}>
-                <button type="submit" className="shimmer-btn" style={{
+                <button type="submit" className="shimmer-btn" disabled={isSubmitting || notConfigured} style={{
                   padding: '16px 64px',
                   background: 'transparent',
                   border: '1px solid var(--gold)',
                   color: 'var(--gold)',
                   fontFamily: 'var(--sans)', fontSize: 11, fontWeight: 500,
                   letterSpacing: '0.22em', textTransform: 'uppercase',
-                  cursor: 'none', transition: 'background 0.3s',
+                  cursor: (isSubmitting || notConfigured) ? 'default' : 'none',
+                  transition: 'background 0.3s',
+                  opacity: (isSubmitting || notConfigured) ? 0.6 : 1,
                 }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,169,110,0.08)'}
+                  onMouseEnter={e => { if (!isSubmitting && !notConfigured) e.currentTarget.style.background = 'rgba(201,169,110,0.08)'; }}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  Send Message
+                  {isSubmitting ? 'Sending…' : 'Send Message'}
                 </button>
               </div>
             </form>
